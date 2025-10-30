@@ -13,6 +13,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -465,6 +466,50 @@ class RecipeControllerTest {
 
             verify(recipeService, times(1)).getAllRecipes();
             verifyNoMoreInteractions(recipeService); // will fail if any other calls happened
+        }
+
+        @AutoConfigureMockMvc
+        @Test
+        void testPostSoupRecipeCreated () throws Exception {
+            ObjectNode json = mapper.createObjectNode();
+            json.put("type", "SOUP");
+            json.put("title", "Soup");
+            json.put("description", "Delicious soup");
+            json.put("ingredients", "onions");
+            json.put("instructions", "boil");
+            json.put("servings", 6);
+            String jsonString = mapper.writeValueAsString(json);
+
+            // thenAnswer: assign ID dynamically based on the request body
+            when(recipeService.addRecipe(any(Recipe.class))).thenAnswer(invocation -> {
+                Recipe r = invocation.getArgument(0);
+                return new Recipe(1L, r.getTitle(), r.getDescription(), r.getIngredients(), r.getInstructions(), 6);
+            });
+
+            mockMvc.perform(post("/api/recipes")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(jsonString))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.title").value("Soup"))
+                    .andExpect(jsonPath("$.description").value("Delicious soup"))
+                    .andExpect(jsonPath("$.ingredients").value("onions"))
+                    .andExpect(jsonPath("$.instructions").value("boil"))
+                    .andExpect(jsonPath("$.id").value(1));
+
+            // capture the Recipe passed into service
+            verify(recipeService).addRecipe(recipeCaptor.capture());
+            Recipe captured = recipeCaptor.getValue();
+            assertNull(captured.getId()); // ID is assigned in service, controller passes no ID
+            assertEquals("Soup", captured.getTitle());
+            assertInstanceOf(SoupRecipe.class, captured);
+
+            // verify order (only addRecipe is expected in this flow)
+            InOrder order = inOrder(recipeService);
+            order.verify(recipeService).addRecipe(any(Recipe.class));
+
+            // ensure nothing else on the service was called
+            verifyNoMoreInteractions(recipeService);
+
         }
     }
 }

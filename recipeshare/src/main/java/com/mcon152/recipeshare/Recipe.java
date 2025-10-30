@@ -60,7 +60,7 @@ public class Recipe {
     public void setServings(Integer servings) { this.servings = servings; }
 
     // Read-only access to discriminator value
-    public String getRecipeType() { return recipeType; }
+    public String getRecipeType(String soup) { return recipeType; }
 }
 
 
